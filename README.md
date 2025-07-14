@@ -29,6 +29,7 @@ A Reusable Workflow of the Docker GitHub Actions steps. Enhanced with learnings 
 5. Add labels and tags via docker/metadata-action
 6. Build and push image via docker/build-push-action with GitHub-based layer caching
 7. Reports tags and labels in the PR comments
+8. Send notifications via email, webhook, or push notifications
 
 ## What other ways can I use this workflow?
 
@@ -40,6 +41,56 @@ I have a more advanced example of using this reusable workflow to do a "promotio
 4. Notify of GitOps PR creation in Slack
 
 I've added that example to my [github-actions-templates](https://github.com/BretFisher/github-actions-templates) repository. It calls the reusable `reusable-docker-build.yaml` file in this repository.
+
+## Multi-platform and Notification Support
+
+### Multi-platform Building
+Build for multiple architectures including ARM:
+```yaml
+with:
+  platforms: linux/amd64,linux/arm64,linux/arm/v7
+```
+
+### Email Notifications
+Send build status via email:
+```yaml
+with:
+  email-enable: true
+  email-to: your-email@example.com,team@example.com
+  email-server: smtp.gmail.com
+  email-port: 465
+secrets:
+  email-username: ${{ secrets.EMAIL_USERNAME }}
+  email-password: ${{ secrets.EMAIL_PASSWORD }}
+```
+
+### Webhook Notifications
+Send build status to external services:
+```yaml
+with:
+  webhook-enable: true
+  webhook-url: https://your-webhook-endpoint.com/notify
+  webhook-method: POST
+  webhook-headers: '{"Custom-Header": "value"}'
+secrets:
+  webhook-token: ${{ secrets.WEBHOOK_TOKEN }}
+```
+
+### Push Notifications
+Send mobile/desktop notifications:
+```yaml
+with:
+  push-notify-enable: true
+  push-notify-url: https://your-push-service.com/api/notify
+secrets:
+  push-notify-token: ${{ secrets.PUSH_NOTIFY_TOKEN }}
+```
+
+### Required Secrets
+Add these secrets to your repository settings:
+- `EMAIL_USERNAME` and `EMAIL_PASSWORD` for email notifications
+- `WEBHOOK_TOKEN` for webhook authentication
+- `PUSH_NOTIFY_TOKEN` for push notification service
 
 ## This repository is part of my example DevOps repositories on GitHub Actions
 
@@ -54,7 +105,7 @@ I've added that example to my [github-actions-templates](https://github.com/Bret
 - [Docker Build/Push Action docs and examples](https://docs.docker.com/build/ci/github-actions/)
 - [My full list of container examples and tools](https://github.com/bretfisher)
 
-## 🎉🎉🎉 Join my cloud native DevOps community 🎉🎉🎉
+## Join my cloud native DevOps community
 
 - [My Cloud Native DevOps Discord server](https://devops.fan)
 - [My weekly YouTube Live show](https://www.youtube.com/@BretFisher)
