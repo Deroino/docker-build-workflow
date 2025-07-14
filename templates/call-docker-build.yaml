@@ -44,6 +44,16 @@ jobs:
       # https://hub.docker.com/settings/security
       # dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
       # dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      # Only needed if with:email-enable is true below
+      # email-username: ${{ secrets.EMAIL_USERNAME }}
+      # email-password: ${{ secrets.EMAIL_PASSWORD }}
+      
+      # Only needed if with:webhook-enable is true below
+      # webhook-token: ${{ secrets.WEBHOOK_TOKEN }}
+      
+      # Only needed if with:push-notify-enable is true below
+      # push-notify-token: ${{ secrets.PUSH_NOTIFY_TOKEN }}
 
     with:
       
@@ -73,3 +83,19 @@ jobs:
       # platforms: linux/amd64
       
       # comment-enable: true
+      
+      # Enable email notifications (optional)
+      # email-enable: true
+      # email-to: your-email@example.com,team@example.com
+      # email-server: smtp.gmail.com
+      # email-port: 465
+      
+      # Enable webhook notifications (optional)
+      # webhook-enable: true
+      # webhook-url: https://your-webhook-endpoint.com/notify
+      # webhook-method: POST
+      # webhook-headers: '{"Custom-Header": "value", "Another-Header": "value2"}'
+      
+      # Enable push notifications (similar to reminder_notify.sh)
+      # push-notify-enable: true
+      # push-notify-url: https://your-push-service.com/api/notify

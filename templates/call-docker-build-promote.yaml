@@ -44,6 +44,17 @@ jobs:
       push: true
       image-names: |
         ghcr.io/${{ github.repository }}
+      # Enable email notifications for PR builds (optional)
+      # email-enable: true
+      # email-to: your-email@example.com,team@example.com
+      
+      # Enable webhook notifications for PR builds (optional)
+      # webhook-enable: true
+      # webhook-url: https://your-webhook-endpoint.com/notify
+      
+      # Enable push notifications for PR builds (optional)
+      # push-notify-enable: true
+      # push-notify-url: https://your-push-service.com/api/notify
 
   # run this job on every push to the default branch (including merges and tags)
   # it will push images to GHCR and DockerHub
@@ -57,6 +68,15 @@ jobs:
     secrets:
       dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
       dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Only needed if email-enable is true above
+      # email-username: ${{ secrets.EMAIL_USERNAME }}
+      # email-password: ${{ secrets.EMAIL_PASSWORD }}
+      
+      # Only needed if webhook-enable is true above
+      # webhook-token: ${{ secrets.WEBHOOK_TOKEN }}
+      
+      # Only needed if push-notify-enable is true above
+      # push-notify-token: ${{ secrets.PUSH_NOTIFY_TOKEN }}
     with:  
       # NOTE: there are lots of input options for this reusable workflow
       # read the comments in the inputs area of the reusable workflow for more info
@@ -67,3 +87,14 @@ jobs:
       image-names: |
         docker.io/${{ github.repository }}
         ghcr.io/${{ github.repository }}
+      # Enable email notifications for production builds (optional)
+      # email-enable: true
+      # email-to: your-email@example.com,team@example.com
+      
+      # Enable webhook notifications for production builds (optional)
+      # webhook-enable: true
+      # webhook-url: https://your-webhook-endpoint.com/notify
+      
+      # Enable push notifications for production builds (optional)
+      # push-notify-enable: true
+      # push-notify-url: https://your-push-service.com/api/notify

@@ -92,6 +92,52 @@ on:
         description: Build stage to target
         required: false
         type: string
+      email-enable:
+        description: Enable email notifications
+        required: false
+        default: false
+        type: boolean
+      email-to:
+        description: Email addresses to send notifications to (comma-separated)
+        required: false
+        type: string
+      email-server:
+        description: SMTP server address
+        required: false
+        default: smtp.gmail.com
+        type: string
+      email-port:
+        description: SMTP server port
+        required: false
+        default: 465
+        type: string
+      webhook-enable:
+        description: Enable webhook notifications
+        required: false
+        default: false
+        type: boolean
+      webhook-url:
+        description: Webhook URL for notifications
+        required: false
+        type: string
+      webhook-method:
+        description: HTTP method for webhook (GET, POST, PUT, PATCH, DELETE)
+        required: false
+        default: POST
+        type: string
+      webhook-headers:
+        description: Custom headers for webhook (JSON format)
+        required: false
+        type: string
+      push-notify-enable:
+        description: Enable push notifications (similar to reminder_notify.sh)
+        required: false
+        default: false
+        type: boolean
+      push-notify-url:
+        description: Push notification service URL
+        required: false
+        type: string
    
     secrets:
       dockerhub-username:
@@ -99,6 +145,18 @@ on:
         required: false
       dockerhub-token:
         description: Docker Hub token
+        required: false
+      email-username:
+        description: Email username for SMTP authentication
+        required: false
+      email-password:
+        description: Email password for SMTP authentication
+        required: false
+      webhook-token:
+        description: Authorization token for webhook requests
+        required: false
+      push-notify-token:
+        description: API token for push notification service
         required: false
 
     outputs:
@@ -229,3 +287,155 @@ jobs:
         run: |
           # shellcheck disable=SC2086
           echo "image-tag=${{ steps.docker_meta.outputs.version }}" >> $GITHUB_OUTPUT
+
+        # Send success email notification
+      - name: Send success email notification
+        if: success() && inputs.email-enable
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ inputs.email-server }}
+          server_port: ${{ inputs.email-port }}
+          username: ${{ secrets.email-username }}
+          password: ${{ secrets.email-password }}
+          subject: "✅ Docker Build Success: ${{ github.workflow }} in ${{ github.repository }}"
+          body: |
+            Docker build completed successfully!
+            
+            Repository: ${{ github.repository }}
+            Workflow: ${{ github.workflow }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            
+            Image tags built:
+            ${{ steps.docker_meta.outputs.tags }}
+            
+            Build details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          to: ${{ inputs.email-to }}
+          from: ${{ secrets.email-username }}
+
+        # Send failure email notification
+      - name: Send failure email notification
+        if: failure() && inputs.email-enable
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ inputs.email-server }}
+          server_port: ${{ inputs.email-port }}
+          username: ${{ secrets.email-username }}
+          password: ${{ secrets.email-password }}
+          subject: "❌ Docker Build Failed: ${{ github.workflow }} in ${{ github.repository }}"
+          body: |
+            Docker build has failed!
+            
+            Repository: ${{ github.repository }}
+            Workflow: ${{ github.workflow }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            
+            Please check the build logs for more details.
+            
+            Build details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          to: ${{ inputs.email-to }}
+          from: ${{ secrets.email-username }}
+
+        # Send webhook notification on success
+      - name: Send webhook notification (success)
+        if: success() && inputs.webhook-enable
+        run: |
+          WEBHOOK_PAYLOAD=$(cat <<EOF
+          {
+            "status": "success",
+            "repository": "${{ github.repository }}",
+            "workflow": "${{ github.workflow }}",
+            "branch": "${{ github.ref_name }}",
+            "commit": "${{ github.sha }}",
+            "image_tags": "${{ steps.docker_meta.outputs.tags }}",
+            "build_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          )
+          
+          HEADERS="-H 'Content-Type: application/json'"
+          
+          # Add custom headers if provided
+          if [ -n "${{ inputs.webhook-headers }}" ]; then
+            echo '${{ inputs.webhook-headers }}' | jq -r 'to_entries[] | "-H \(.key): \(.value)"' | while read -r header; do
+              HEADERS="$HEADERS $header"
+            done
+          fi
+          
+          # Add authorization header if token is provided
+          if [ -n "${{ secrets.webhook-token }}" ]; then
+            HEADERS="$HEADERS -H 'Authorization: Bearer ${{ secrets.webhook-token }}'"
+          fi
+          
+          # Send webhook request
+          curl -X ${{ inputs.webhook-method }} \
+            $HEADERS \
+            -d "$WEBHOOK_PAYLOAD" \
+            "${{ inputs.webhook-url }}"
+
+        # Send webhook notification on failure
+      - name: Send webhook notification (failure)
+        if: failure() && inputs.webhook-enable
+        run: |
+          WEBHOOK_PAYLOAD=$(cat <<EOF
+          {
+            "status": "failure",
+            "repository": "${{ github.repository }}",
+            "workflow": "${{ github.workflow }}",
+            "branch": "${{ github.ref_name }}",
+            "commit": "${{ github.sha }}",
+            "build_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          )
+          
+          HEADERS="-H 'Content-Type: application/json'"
+          
+          # Add custom headers if provided
+          if [ -n "${{ inputs.webhook-headers }}" ]; then
+            echo '${{ inputs.webhook-headers }}' | jq -r 'to_entries[] | "-H \(.key): \(.value)"' | while read -r header; do
+              HEADERS="$HEADERS $header"
+            done
+          fi
+          
+          # Add authorization header if token is provided
+          if [ -n "${{ secrets.webhook-token }}" ]; then
+            HEADERS="$HEADERS -H 'Authorization: Bearer ${{ secrets.webhook-token }}'"
+          fi
+          
+          # Send webhook request
+          curl -X ${{ inputs.webhook-method }} \
+            $HEADERS \
+            -d "$WEBHOOK_PAYLOAD" \
+            "${{ inputs.webhook-url }}"
+
+        # Send push notification on success (similar to reminder_notify.sh)
+      - name: Send push notification (success)
+        if: success() && inputs.push-notify-enable
+        run: |
+          TITLE="✅ Docker Build Success"
+          MESSAGE="Docker build for ${{ github.repository }} completed successfully on branch ${{ github.ref_name }}"
+          
+          # Send push notification
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.push-notify-token }}" \
+            -d "{\"title\": \"$TITLE\", \"message\": \"$MESSAGE\"}" \
+            "${{ inputs.push-notify-url }}"
+
+        # Send push notification on failure (similar to reminder_notify.sh)
+      - name: Send push notification (failure)
+        if: failure() && inputs.push-notify-enable
+        run: |
+          TITLE="❌ Docker Build Failed"
+          MESSAGE="Docker build for ${{ github.repository }} failed on branch ${{ github.ref_name }}. Please check the logs."
+          
+          # Send push notification
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.push-notify-token }}" \
+            -d "{\"title\": \"$TITLE\", \"message\": \"$MESSAGE\"}" \
+            "${{ inputs.push-notify-url }}"
