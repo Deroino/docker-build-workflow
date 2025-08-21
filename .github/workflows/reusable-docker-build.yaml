@@ -288,6 +288,16 @@ jobs:
           # shellcheck disable=SC2086
           echo "image-tag=${{ steps.docker_meta.outputs.version }}" >> $GITHUB_OUTPUT
 
+      - name: Capture Build Logs
+        if: always()
+        id: capture-logs
+        run: |
+          gh run view ${{ github.run_id }} --log | tail -n 200 > build-logs.txt
+          LOG_CONTENT=$(cat build-logs.txt)
+          echo "::set-output name=logs::$LOG_CONTENT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
         # Send success email notification
       - name: Send success email notification
         if: success() && inputs.email-enable
@@ -310,6 +320,12 @@ jobs:
             ${{ steps.docker_meta.outputs.tags }}
             
             Build details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ---
+            Last 200 lines of build log:
+            ```
+            ${{ steps.capture-logs.outputs.logs }}
+            ```
           to: ${{ inputs.email-to }}
           from: ${{ secrets.email-username }}
 
@@ -334,6 +350,12 @@ jobs:
             Please check the build logs for more details.
             
             Build details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ---
+            Last 200 lines of build log:
+            ```
+            ${{ steps.capture-logs.outputs.logs }}
+            ```
           to: ${{ inputs.email-to }}
           from: ${{ secrets.email-username }}
 
@@ -350,7 +372,8 @@ jobs:
             "commit": "${{ github.sha }}",
             "image_tags": "${{ steps.docker_meta.outputs.tags }}",
             "build_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "logs": "$(echo "${{ steps.capture-logs.outputs.logs }}" | jq -sR .)"
           }
           EOF
           )
@@ -387,7 +410,8 @@ jobs:
             "branch": "${{ github.ref_name }}",
             "commit": "${{ github.sha }}",
             "build_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "logs": "$(echo "${{ steps.capture-logs.outputs.logs }}" | jq -sR .)"
           }
           EOF
           )
@@ -418,12 +442,13 @@ jobs:
         run: |
           TITLE="✅ Docker Build Success"
           MESSAGE="Docker build for ${{ github.repository }} completed successfully on branch ${{ github.ref_name }}"
-          
+          MESSAGE_WITH_LOGS="$MESSAGE\n\nLast 200 lines of log:\n${{ steps.capture-logs.outputs.logs }}"
+
           # Send push notification
           curl -X POST \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.push-notify-token }}" \
-            -d "{\"title\": \"$TITLE\", \"message\": \"$MESSAGE\"}" \
+            -d "{\"title\": \"$TITLE\", \"message\": \"$MESSAGE_WITH_LOGS\"}" \
             "${{ inputs.push-notify-url }}"
 
         # Send push notification on failure (similar to reminder_notify.sh)
@@ -432,10 +457,11 @@ jobs:
         run: |
           TITLE="❌ Docker Build Failed"
           MESSAGE="Docker build for ${{ github.repository }} failed on branch ${{ github.ref_name }}. Please check the logs."
+          MESSAGE_WITH_LOGS="$MESSAGE\n\nLast 200 lines of log:\n${{ steps.capture-logs.outputs.logs }}"
           
           # Send push notification
           curl -X POST \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.push-notify-token }}" \
-            -d "{\"title\": \"$TITLE\", \"message\": \"$MESSAGE\"}" \
+            -d "{\"title\": \"$TITLE\", \"message\": \"$MESSAGE_WITH_LOGS\"}" \
             "${{ inputs.push-notify-url }}"
