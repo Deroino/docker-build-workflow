@@ -114,7 +114,7 @@ on:
       webhook-enable:
         description: Enable webhook notifications
         required: false
-        default: false
+        default: true
         type: boolean
       webhook-url:
         description: Webhook URL for notifications
@@ -132,11 +132,12 @@ on:
       push-notify-enable:
         description: Enable push notifications (similar to reminder_notify.sh)
         required: false
-        default: false
+        default: true
         type: boolean
-      push-notify-url:
-        description: Push notification service URL
+      push-notify-base-url:
+        description: Push notification service base URL
         required: false
+        default: https://reminderapi.joyslinktech.com/v1/push/key
         type: string
    
     secrets:
@@ -440,28 +441,50 @@ jobs:
       - name: Send push notification (success)
         if: success() && inputs.push-notify-enable
         run: |
-          TITLE="✅ Docker Build Success"
-          MESSAGE="Docker build for ${{ github.repository }} completed successfully on branch ${{ github.ref_name }}"
-          MESSAGE_WITH_LOGS="$MESSAGE\n\nLast 200 lines of log:\n${{ steps.capture-logs.outputs.logs }}"
-
-          # Send push notification
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.push-notify-token }}" \
-            -d "{\"title\": \"$TITLE\", \"message\": \"$MESSAGE_WITH_LOGS\"}" \
-            "${{ inputs.push-notify-url }}"
+          # Extract project name from repository
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          TITLE="${REPO_NAME} Build Success"
+          DESCRIPTION="Docker build for ${{ github.repository }} completed successfully on branch ${{ github.ref_name }}"
+          SHORT="GHA-SUCCESS"
+          
+          # URL encode function
+          urlencode() {
+            python3 -c "import urllib.parse; print(urllib.parse.quote('$1'))"
+          }
+          
+          # Encode parameters
+          ENCODED_TITLE=$(urlencode "$TITLE")
+          ENCODED_DESCRIPTION=$(urlencode "$DESCRIPTION")
+          ENCODED_SHORT=$(urlencode "$SHORT")
+          
+          # Build URL with query parameters
+          FULL_URL="${{ inputs.push-notify-base-url }}/${{ secrets.push-notify-token }}?title=${ENCODED_TITLE}&description=${ENCODED_DESCRIPTION}&short=${ENCODED_SHORT}&tags=GitHubActions&pushType=1"
+          
+          # Send GET request
+          curl -s -X GET "$FULL_URL"
 
         # Send push notification on failure (similar to reminder_notify.sh)
       - name: Send push notification (failure)
         if: failure() && inputs.push-notify-enable
         run: |
-          TITLE="❌ Docker Build Failed"
-          MESSAGE="Docker build for ${{ github.repository }} failed on branch ${{ github.ref_name }}. Please check the logs."
-          MESSAGE_WITH_LOGS="$MESSAGE\n\nLast 200 lines of log:\n${{ steps.capture-logs.outputs.logs }}"
+          # Extract project name from repository
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          TITLE="${REPO_NAME} Build Failed"
+          DESCRIPTION="Docker build for ${{ github.repository }} failed on branch ${{ github.ref_name }}. Please check the logs."
+          SHORT="GHA-FAILURE"
           
-          # Send push notification
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.push-notify-token }}" \
-            -d "{\"title\": \"$TITLE\", \"message\": \"$MESSAGE_WITH_LOGS\"}" \
-            "${{ inputs.push-notify-url }}"
+          # URL encode function
+          urlencode() {
+            python3 -c "import urllib.parse; print(urllib.parse.quote('$1'))"
+          }
+          
+          # Encode parameters
+          ENCODED_TITLE=$(urlencode "$TITLE")
+          ENCODED_DESCRIPTION=$(urlencode "$DESCRIPTION")
+          ENCODED_SHORT=$(urlencode "$SHORT")
+          
+          # Build URL with query parameters
+          FULL_URL="${{ inputs.push-notify-base-url }}/${{ secrets.push-notify-token }}?title=${ENCODED_TITLE}&description=${ENCODED_DESCRIPTION}&short=${ENCODED_SHORT}&tags=GitHubActions&pushType=1"
+          
+          # Send GET request
+          curl -s -X GET "$FULL_URL"
