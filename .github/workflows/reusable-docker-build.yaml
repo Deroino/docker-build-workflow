@@ -347,8 +347,8 @@ jobs:
           # Extract project name from repository
           REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
           TITLE="${REPO_NAME} Build Success"
-          DESCRIPTION="Docker build for ${{ github.repository }} completed successfully on branch ${{ github.ref_name }}"
-          SHORT="GHA-SUCCESS"
+          DESCRIPTION="Build completed on ${{ github.ref_name }}"
+          SHORT="SUCCESS"
           
           # URL encode function
           urlencode() {
@@ -373,8 +373,8 @@ jobs:
           # Extract project name from repository
           REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
           TITLE="${REPO_NAME} Build Failed"
-          DESCRIPTION="Docker build for ${{ github.repository }} failed on branch ${{ github.ref_name }}. Please check the logs."
-          SHORT="GHA-FAILURE"
+          DESCRIPTION="Build failed on ${{ github.ref_name }}"
+          SHORT="FAILED"
           
           # URL encode function
           urlencode() {
