@@ -111,24 +111,6 @@ on:
         required: false
         default: 465
         type: string
-      webhook-enable:
-        description: Enable webhook notifications
-        required: false
-        default: true
-        type: boolean
-      webhook-url:
-        description: Webhook URL for notifications
-        required: false
-        type: string
-      webhook-method:
-        description: HTTP method for webhook (GET, POST, PUT, PATCH, DELETE)
-        required: false
-        default: POST
-        type: string
-      webhook-headers:
-        description: Custom headers for webhook (JSON format)
-        required: false
-        type: string
       push-notify-enable:
         description: Enable push notifications (similar to reminder_notify.sh)
         required: false
@@ -152,9 +134,6 @@ on:
         required: false
       email-password:
         description: Email password for SMTP authentication
-        required: false
-      webhook-token:
-        description: Authorization token for webhook requests
         required: false
       push-notify-token:
         description: API token for push notification service
@@ -360,82 +339,6 @@ jobs:
           to: ${{ inputs.email-to }}
           from: ${{ secrets.email-username }}
 
-        # Send webhook notification on success
-      - name: Send webhook notification (success)
-        if: success() && inputs.webhook-enable
-        run: |
-          WEBHOOK_PAYLOAD=$(cat <<EOF
-          {
-            "status": "success",
-            "repository": "${{ github.repository }}",
-            "workflow": "${{ github.workflow }}",
-            "branch": "${{ github.ref_name }}",
-            "commit": "${{ github.sha }}",
-            "image_tags": "${{ steps.docker_meta.outputs.tags }}",
-            "build_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "logs": "$(echo "${{ steps.capture-logs.outputs.logs }}" | jq -sR .)"
-          }
-          EOF
-          )
-          
-          HEADERS="-H 'Content-Type: application/json'"
-          
-          # Add custom headers if provided
-          if [ -n "${{ inputs.webhook-headers }}" ]; then
-            echo '${{ inputs.webhook-headers }}' | jq -r 'to_entries[] | "-H \(.key): \(.value)"' | while read -r header; do
-              HEADERS="$HEADERS $header"
-            done
-          fi
-          
-          # Add authorization header if token is provided
-          if [ -n "${{ secrets.webhook-token }}" ]; then
-            HEADERS="$HEADERS -H 'Authorization: Bearer ${{ secrets.webhook-token }}'"
-          fi
-          
-          # Send webhook request
-          curl -X ${{ inputs.webhook-method }} \
-            $HEADERS \
-            -d "$WEBHOOK_PAYLOAD" \
-            "${{ inputs.webhook-url }}"
-
-        # Send webhook notification on failure
-      - name: Send webhook notification (failure)
-        if: failure() && inputs.webhook-enable
-        run: |
-          WEBHOOK_PAYLOAD=$(cat <<EOF
-          {
-            "status": "failure",
-            "repository": "${{ github.repository }}",
-            "workflow": "${{ github.workflow }}",
-            "branch": "${{ github.ref_name }}",
-            "commit": "${{ github.sha }}",
-            "build_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "logs": "$(echo "${{ steps.capture-logs.outputs.logs }}" | jq -sR .)"
-          }
-          EOF
-          )
-          
-          HEADERS="-H 'Content-Type: application/json'"
-          
-          # Add custom headers if provided
-          if [ -n "${{ inputs.webhook-headers }}" ]; then
-            echo '${{ inputs.webhook-headers }}' | jq -r 'to_entries[] | "-H \(.key): \(.value)"' | while read -r header; do
-              HEADERS="$HEADERS $header"
-            done
-          fi
-          
-          # Add authorization header if token is provided
-          if [ -n "${{ secrets.webhook-token }}" ]; then
-            HEADERS="$HEADERS -H 'Authorization: Bearer ${{ secrets.webhook-token }}'"
-          fi
-          
-          # Send webhook request
-          curl -X ${{ inputs.webhook-method }} \
-            $HEADERS \
-            -d "$WEBHOOK_PAYLOAD" \
-            "${{ inputs.webhook-url }}"
 
         # Send push notification on success (similar to reminder_notify.sh)
       - name: Send push notification (success)
@@ -458,7 +361,7 @@ jobs:
           ENCODED_SHORT=$(urlencode "$SHORT")
           
           # Build URL with query parameters
-          FULL_URL="${{ inputs.push-notify-base-url }}/${{ secrets.push-notify-token }}?title=${ENCODED_TITLE}&description=${ENCODED_DESCRIPTION}&short=${ENCODED_SHORT}&tags=GitHubActions&pushType=1"
+          FULL_URL="${{ inputs.push-notify-base-url }}/${{ secrets.push-notify-token }}?title=${ENCODED_TITLE}&description=${ENCODED_DESCRIPTION}&short=${ENCODED_SHORT}&tags=GHA&pushType=1"
           
           # Send GET request
           curl -s -X GET "$FULL_URL"
@@ -484,7 +387,7 @@ jobs:
           ENCODED_SHORT=$(urlencode "$SHORT")
           
           # Build URL with query parameters
-          FULL_URL="${{ inputs.push-notify-base-url }}/${{ secrets.push-notify-token }}?title=${ENCODED_TITLE}&description=${ENCODED_DESCRIPTION}&short=${ENCODED_SHORT}&tags=GitHubActions&pushType=1"
+          FULL_URL="${{ inputs.push-notify-base-url }}/${{ secrets.push-notify-token }}?title=${ENCODED_TITLE}&description=${ENCODED_DESCRIPTION}&short=${ENCODED_SHORT}&tags=GHA&pushType=1"
           
           # Send GET request
           curl -s -X GET "$FULL_URL"
