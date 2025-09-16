@@ -79,8 +79,8 @@ on:
         # I still recommend reusable `latest` tag for human-friendly testing (not servers)
         # I like a full tag for prod images that reads something like `stable-<date>-<commit>`
         # Tags starting with `gha-<run_id>` are unique to each PR commit, and used to test fresh images      # rules with is_default_branch only create the tag if it's a push/merge to default branch
-        # priority attribute is used to sort tags in the final list. The higher the value, 
-        #   the higher the priority. The first tag in the list (higher priority) will be used as 
+        # priority attribute is used to sort tags in the final list. The higher the value,
+        #   the higher the priority. The first tag in the list (higher priority) will be used as
         #   the image version for generated OCI label and version output.
         default: |
           type=raw,value=stable-{{date 'YYYYMMDD'}}-{{sha}},enable={{is_default_branch}},priority=300
@@ -92,36 +92,12 @@ on:
         description: Build stage to target
         required: false
         type: string
-      email-enable:
-        description: Enable email notifications
-        required: false
-        default: false
-        type: boolean
-      email-to:
-        description: Email addresses to send notifications to (comma-separated)
-        required: false
-        type: string
-      email-server:
-        description: SMTP server address
-        required: false
-        default: smtp.gmail.com
-        type: string
-      email-port:
-        description: SMTP server port
-        required: false
-        default: 465
-        type: string
-      push-notify-enable:
-        description: Enable push notifications (similar to reminder_notify.sh)
+      notify-enable:
+        description: Enable new notification service
         required: false
         default: true
         type: boolean
-      push-notify-base-url:
-        description: Push notification service base URL
-        required: false
-        default: https://reminderapi.joyslinktech.com/v1/push/key
-        type: string
-   
+
     secrets:
       dockerhub-username:
         description: Docker Hub username
@@ -129,14 +105,11 @@ on:
       dockerhub-token:
         description: Docker Hub token
         required: false
-      email-username:
-        description: Email username for SMTP authentication
+      notify-base-url:
+        description: Base URL for notification service
         required: false
-      email-password:
-        description: Email password for SMTP authentication
-        required: false
-      push-notify-token:
-        description: API token for push notification service
+      notify-token:
+        description: Token for notification service authentication
         required: false
 
     outputs:
@@ -166,6 +139,27 @@ jobs:
       image-tag: ${{ steps.image-tag.outputs.image-tag }}
 
     steps:
+
+      # Send notification at start of build
+      - name: Send build start notification
+        if: inputs.notify-enable
+        run: |
+          # URL encode function
+          urlencode() {
+            python3 -c "import urllib.parse; print(urllib.parse.quote('$1'))"
+          }
+
+          # Prepare notification parameters
+          TITLE="🚀 Build Started"
+          MESSAGE="Docker build started for ${{ github.repository }} on branch ${{ github.ref_name }}\n\nBuild URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}"
+          ENCODED_TITLE=$(urlencode "$TITLE")
+          ENCODED_MESSAGE=$(urlencode "$MESSAGE")
+
+          # Send notification
+          if [ -n "${{ secrets.notify-base-url }}" ] && [ -n "${{ secrets.notify-token }}" ]; then
+            FULL_URL="${{ secrets.notify-base-url }}/message?token=${{ secrets.notify-token }}&title=${ENCODED_TITLE}&message=${ENCODED_MESSAGE}&priority=5"
+            curl -s -X GET "$FULL_URL" || echo "Failed to send start notification"
+          fi
 
         # we need qemu and buildx so we can build multiple platforms later
       - name: Set up QEMU
@@ -237,7 +231,7 @@ jobs:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: 'github-actions[bot]'
           body-includes: Docker image tag(s) pushed
-      
+
         # If PR, put image tags in the PR comments
       - name: Create or update comment for image tags
         uses: peter-evans/create-or-update-comment@v4.0.0
@@ -248,7 +242,7 @@ jobs:
           body: |
             Docker image tag(s) pushed:
             ```text
-            ${{ steps.docker_meta.outputs.tags }} 
+            ${{ steps.docker_meta.outputs.tags }}
             ```
 
             Labels added to images:
@@ -278,116 +272,44 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-        # Send success email notification
-      - name: Send success email notification
-        if: success() && inputs.email-enable
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ inputs.email-server }}
-          server_port: ${{ inputs.email-port }}
-          username: ${{ secrets.email-username }}
-          password: ${{ secrets.email-password }}
-          subject: "✅ Docker Build Success: ${{ github.workflow }} in ${{ github.repository }}"
-          body: |
-            Docker build completed successfully!
-            
-            Repository: ${{ github.repository }}
-            Workflow: ${{ github.workflow }}
-            Branch: ${{ github.ref_name }}
-            Commit: ${{ github.sha }}
-            
-            Image tags built:
-            ${{ steps.docker_meta.outputs.tags }}
-            
-            Build details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            ---
-            Last 200 lines of build log:
-            ```
-            ${{ steps.capture-logs.outputs.logs }}
-            ```
-          to: ${{ inputs.email-to }}
-          from: ${{ secrets.email-username }}
-
-        # Send failure email notification
-      - name: Send failure email notification
-        if: failure() && inputs.email-enable
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ inputs.email-server }}
-          server_port: ${{ inputs.email-port }}
-          username: ${{ secrets.email-username }}
-          password: ${{ secrets.email-password }}
-          subject: "❌ Docker Build Failed: ${{ github.workflow }} in ${{ github.repository }}"
-          body: |
-            Docker build has failed!
-            
-            Repository: ${{ github.repository }}
-            Workflow: ${{ github.workflow }}
-            Branch: ${{ github.ref_name }}
-            Commit: ${{ github.sha }}
-            
-            Please check the build logs for more details.
-            
-            Build details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            ---
-            Last 200 lines of build log:
-            ```
-            ${{ steps.capture-logs.outputs.logs }}
-            ```
-          to: ${{ inputs.email-to }}
-          from: ${{ secrets.email-username }}
-
-
-        # Send push notification on success (similar to reminder_notify.sh)
-      - name: Send push notification (success)
-        if: success() && inputs.push-notify-enable
+      # Send notification at end of build (success)
+      - name: Send build success notification
+        if: success() && inputs.notify-enable
         run: |
-          # Extract project name from repository
-          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
-          TITLE="${REPO_NAME} Build Success"
-          DESCRIPTION="Build completed on ${{ github.ref_name }}"
-          SHORT="SUCCESS"
-          
           # URL encode function
           urlencode() {
             python3 -c "import urllib.parse; print(urllib.parse.quote('$1'))"
           }
-          
-          # Encode parameters
-          ENCODED_TITLE=$(urlencode "$TITLE")
-          ENCODED_DESCRIPTION=$(urlencode "$DESCRIPTION")
-          ENCODED_SHORT=$(urlencode "$SHORT")
-          
-          # Build URL with query parameters
-          FULL_URL="${{ inputs.push-notify-base-url }}/${{ secrets.push-notify-token }}?title=${ENCODED_TITLE}&description=${ENCODED_DESCRIPTION}&short=${ENCODED_SHORT}&tags=GHA&pushType=1"
-          
-          # Send GET request
-          curl -s -X GET "$FULL_URL"
 
-        # Send push notification on failure (similar to reminder_notify.sh)
-      - name: Send push notification (failure)
-        if: failure() && inputs.push-notify-enable
+          # Prepare notification parameters
+          TITLE="✅ Build Success"
+          MESSAGE="Docker build completed successfully for ${{ github.repository }} on branch ${{ github.ref_name }}\n\nBuild URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}\n\nImage tags:\n${{ steps.docker_meta.outputs.tags }}"
+          ENCODED_TITLE=$(urlencode "$TITLE")
+          ENCODED_MESSAGE=$(urlencode "$MESSAGE")
+
+          # Send notification
+          if [ -n "${{ secrets.notify-base-url }}" ] && [ -n "${{ secrets.notify-token }}" ]; then
+            FULL_URL="${{ secrets.notify-base-url }}/message?token=${{ secrets.notify-token }}&title=${ENCODED_TITLE}&message=${ENCODED_MESSAGE}&priority=8"
+            curl -s -X GET "$FULL_URL" || echo "Failed to send success notification"
+          fi
+
+      # Send notification at end of build (failure)
+      - name: Send build failure notification
+        if: failure() && inputs.notify-enable
         run: |
-          # Extract project name from repository
-          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
-          TITLE="${REPO_NAME} Build Failed"
-          DESCRIPTION="Build failed on ${{ github.ref_name }}"
-          SHORT="FAILED"
-          
           # URL encode function
           urlencode() {
             python3 -c "import urllib.parse; print(urllib.parse.quote('$1'))"
           }
-          
-          # Encode parameters
+
+          # Prepare notification parameters
+          TITLE="❌ Build Failed"
+          MESSAGE="Docker build failed for ${{ github.repository }} on branch ${{ github.ref_name }}\n\nBuild URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}\n\nPlease check the logs for more details.\n\nLast 200 lines of log:\n${{ steps.capture-logs.outputs.logs }}"
           ENCODED_TITLE=$(urlencode "$TITLE")
-          ENCODED_DESCRIPTION=$(urlencode "$DESCRIPTION")
-          ENCODED_SHORT=$(urlencode "$SHORT")
-          
-          # Build URL with query parameters
-          FULL_URL="${{ inputs.push-notify-base-url }}/${{ secrets.push-notify-token }}?title=${ENCODED_TITLE}&description=${ENCODED_DESCRIPTION}&short=${ENCODED_SHORT}&tags=GHA&pushType=1"
-          
-          # Send GET request
-          curl -s -X GET "$FULL_URL"
+          ENCODED_MESSAGE=$(urlencode "$MESSAGE")
+
+          # Send notification
+          if [ -n "${{ secrets.notify-base-url }}" ] && [ -n "${{ secrets.notify-token }}" ]; then
+            FULL_URL="${{ secrets.notify-base-url }}/message?token=${{ secrets.notify-token }}&title=${ENCODED_TITLE}&message=${ENCODED_MESSAGE}&priority=10"
+            curl -s -X GET "$FULL_URL" || echo "Failed to send failure notification"
+          fi
