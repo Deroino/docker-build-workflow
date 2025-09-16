@@ -147,7 +147,7 @@ jobs:
           # Send notification
           if [ -n "${{ secrets.notify-base-url }}" ] && [ -n "${{ secrets.notify-token }}" ]; then
             FULL_URL="${{ secrets.notify-base-url }}/message?token=${{ secrets.notify-token }}"
-            PAYLOAD=$(jq -n --arg title "🚀 Build Started" --arg message "Docker build started for ${{ github.repository }} on branch ${{ github.ref_name }}\n\nBuild URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}" --arg priority "5" '{title: $title, message: $message, priority: $priority}')
+            PAYLOAD=$(jq -n --arg title "🚀 Build Started" --arg message "Docker build started for ${{ github.repository }} on branch ${{ github.ref_name }}\n\nBuild URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}" --argjson priority 5 '{title: $title, message: $message, priority: $priority}')
             curl -s -X POST "$FULL_URL" -H "Content-Type: application/json" -d "$PAYLOAD" || echo "Failed to send start notification"
           fi
 
@@ -269,7 +269,7 @@ jobs:
           # Send notification
           if [ -n "${{ secrets.notify-base-url }}" ] && [ -n "${{ secrets.notify-token }}" ]; then
             FULL_URL="${{ secrets.notify-base-url }}/message?token=${{ secrets.notify-token }}"
-            PAYLOAD=$(jq -n --arg title "✅ Build Success" --arg message "Docker build completed successfully for ${{ github.repository }} on branch ${{ github.ref_name }}\n\nBuild URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}\n\nImage tags:\n${{ steps.docker_meta.outputs.tags }}" --arg priority "8" '{title: $title, message: $message, priority: $priority}')
+            PAYLOAD=$(jq -n --arg title "✅ Build Success" --arg message "Docker build completed successfully for ${{ github.repository }} on branch ${{ github.ref_name }}\n\nBuild URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}\n\nImage tags:\n${{ steps.docker_meta.outputs.tags }}" --argjson priority 8 '{title: $title, message: $message, priority: $priority}')
             curl -s -X POST "$FULL_URL" -H "Content-Type: application/json" -d "$PAYLOAD" || echo "Failed to send success notification"
           fi
 
@@ -280,6 +280,6 @@ jobs:
           # Send notification
           if [ -n "${{ secrets.notify-base-url }}" ] && [ -n "${{ secrets.notify-token }}" ]; then
             FULL_URL="${{ secrets.notify-base-url }}/message?token=${{ secrets.notify-token }}"
-            PAYLOAD=$(jq -n --arg title "❌ Build Failed" --arg message "Docker build failed for ${{ github.repository }} on branch ${{ github.ref_name }}\n\nBuild URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}\n\nPlease check the logs for more details.\n\nLast 200 lines of log:\n${{ steps.capture-logs.outputs.logs }}" --arg priority "10" '{title: $title, message: $message, priority: $priority}')
+            PAYLOAD=$(jq -n --arg title "❌ Build Failed" --arg message "Docker build failed for ${{ github.repository }} on branch ${{ github.ref_name }}\n\nBuild URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}\n\nPlease check the logs for more details.\n\nLast 200 lines of log:\n${{ steps.capture-logs.outputs.logs }}" --argjson priority 10 '{title: $title, message: $message, priority: $priority}')
             curl -s -X POST "$FULL_URL" -H "Content-Type: application/json" -d "$PAYLOAD" || echo "Failed to send failure notification"
           fi
